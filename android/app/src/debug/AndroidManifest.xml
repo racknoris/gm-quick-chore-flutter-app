@@ -4,4 +4,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Dev-only: allow plaintext HTTP so the app can reach the local backend /
+         Supabase over http:// (e.g. 10.0.2.2). NEVER shipped — this manifest
+         applies to debug builds only; release stays HTTPS-only. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>
