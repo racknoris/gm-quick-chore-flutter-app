@@ -1,30 +1,54 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Model parsing tests. (A full-app widget test would need Supabase.initialize,
+// so we cover the JSON contract mapping here instead.)
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:gm_quick_chore_flutter_app/main.dart';
+import 'package:gm_quick_chore_flutter_app/models/recording.dart';
+import 'package:gm_quick_chore_flutter_app/models/chore.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('Recording.fromJson parses a done recording with chores', () {
+    final rec = Recording.fromJson({
+      'id': 'rec_1',
+      'title': 'Errands',
+      'status': 'done',
+      'transcript': 'buy milk',
+      'error': null,
+      'chores': [
+        {
+          'id': 'c1',
+          'content': 'Buy milk',
+          'is_done': false,
+          'position': 1,
+          'due_date': null,
+          'priority': null,
+          'notes': null,
+        },
+      ],
+      'created_at': '2026-07-09T12:00:00Z',
+      'updated_at': '2026-07-09T12:00:18Z',
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(rec.status, RecordingStatus.done);
+    expect(rec.title, 'Errands');
+    expect(rec.isTerminal, isTrue);
+    expect(rec.chores.single.content, 'Buy milk');
+    expect(rec.chores.single.dueDate, isNull); // v2
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  test('Recording maps failure codes to friendly messages', () {
+    final rec = Recording.fromJson({
+      'id': 'rec_2',
+      'status': 'failed',
+      'error': 'transcription_failed',
+      'chores': <dynamic>[],
+    });
+    expect(rec.status, RecordingStatus.failed);
+    expect(rec.friendlyError, contains("Couldn't understand"));
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  test('Chore.copyWith toggles is_done', () {
+    const chore = Chore(id: 'c1', content: 'x', isDone: false);
+    expect(chore.copyWith(isDone: true).isDone, isTrue);
   });
 }
