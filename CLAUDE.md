@@ -348,6 +348,7 @@ Returns an array of recordings (each with `title`, `created_at`, `status`, and
 
 ```text
 Chore due_date / priority / notes   (nullable now; LLM fills later)
+Chore kind: "chore" | "note"        (style single notes differently)
 Chore reorder (drag → position)     (numeric position column exists now)
 Client-supplied recorded_at         (nullable column exists now)
 GET /recordings pagination
