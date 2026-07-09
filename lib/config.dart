@@ -113,6 +113,7 @@ class AppConfig {
   /// Environment-independent, so it stays a plain constant.
   static const storageBucket = 'recordings';
 
-  /// Recording limits (MVP) — mirrors the backend/API contract.
-  static const maxRecordingSeconds = 90;
+  /// Recording limits — mirrors the backend/API contract. Up to 30 min of
+  /// speech; at 64 kbps mono that's ≈ 14 MB, safely under OpenAI's 25 MB limit.
+  static const maxRecordingSeconds = 30 * 60; // 30 minutes
 }

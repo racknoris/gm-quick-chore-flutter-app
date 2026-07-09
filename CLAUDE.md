@@ -85,14 +85,17 @@ iOS Action Button / App Intent.
 Recommended format and limits:
 
 ```text
-Format: .m4a / .aac
-Max duration: 90 seconds
-Max file size: 10–20 MB
+Format:       .m4a / .aac (AAC-LC)
+Encoding:     64 kbps, 16 kHz, mono   (speech-tuned; Android uses VOICE_RECOGNITION)
+Max duration: 30 minutes
+Max file size: 25 MB
 ```
 
-Keeping recordings short means faster upload, lower transcription cost, less
-chance of a Heroku dyno restart mid-processing, and better UX — still plenty for
-quick chore notes.
+16 kHz mono matches what `gpt-4o-transcribe` uses internally, so higher settings
+are wasted bytes. At 64 kbps, 30 min ≈ 14 MB — comfortably under OpenAI's 25 MB
+transcription limit (~50 min is where you'd approach it). Long recordings make
+transcription take minutes, so processing must not run on the web dyno alone —
+see the backend's worker+queue note.
 
 ---
 
