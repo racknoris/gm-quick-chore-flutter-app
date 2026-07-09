@@ -34,13 +34,29 @@ RLS / storage access policies
 Flutter mobile app
 Supabase Storage   (raw audio recordings)
 Supabase Postgres  (users, recordings, transcripts, chores, status)
-Supabase Auth      (optional for MVP)
+Supabase Auth      (MANDATORY — every backend call carries a Supabase JWT)
 Heroku Web API     (backend orchestration — see backend CLAUDE.md)
 ```
+
+Supabase Auth is **required**, not optional. Every request to the backend carries
+the authenticated user's Supabase JWT in `Authorization: Bearer <token>`, and the
+backend derives `user_id` from it. The client never sends `user_id` in a body.
 
 Do **not** use Supabase Edge Functions for the MVP — Heroku already owns the
 API logic, transcription orchestration, LLM prompt, and DB inserts. Edge
 Functions also have duration limits that make long transcription risky.
+
+### Dependencies
+
+Use the **latest** packages, with these minimum pins:
+
+```text
+flutter_bloc:     ^9.1.1   (state management — use BLoC/Cubit throughout)
+supabase_flutter: ^2.16.0  (auth + storage upload + Postgres access)
+```
+
+State management is **flutter_bloc**. Model the record → upload → poll → display
+flow as a Cubit/BLoC with explicit states that map to the UI statuses below.
 
 ---
 
@@ -152,14 +168,23 @@ When done:
 ```json
 {
   "id": "rec_456",
+  "title": "Errands",
   "status": "done",
   "transcript": "I need to buy milk and call Avi tomorrow.",
+  "created_at": "2026-07-09T12:00:00Z",
   "chores": [
-    { "title": "Buy milk", "due_date": null,         "priority": "normal", "notes": null },
-    { "title": "Call Avi",  "due_date": "2026-07-09", "priority": "normal", "notes": null }
+    { "id": "chore_1", "content": "Buy milk", "is_done": false, "position": 1,
+      "due_date": null, "priority": null, "notes": null },
+    { "id": "chore_2", "content": "Call Avi", "is_done": false, "position": 2,
+      "due_date": null, "priority": null, "notes": null }
   ]
 }
 ```
+
+Each recording carries an LLM-generated `title`, its recording date
+(`created_at`), and a `chores` array. A recording that turns out to be a single
+note is just a `chores` array of length 1 — the client always renders one list.
+`due_date`, `priority`, and `notes` are **v2** and always `null` in the MVP.
 
 ### Polling strategy
 
@@ -180,6 +205,21 @@ Failed, tap to retry
 ```
 
 Backend status values: `uploaded`, `processing`, `done`, `failed`.
+
+### Empty vs failed
+
+- A valid transcript with **no chores** is still a success: `status: done`,
+  `chores: []`, and a `title` is still generated. Show an empty list, not an error.
+- If the audio produced **no usable transcript**, the job comes back `failed` with
+  a machine `error` code. Map the code to a clear message for the user:
+
+```text
+transcription_failed          → "Couldn't understand the recording. Try again."
+network_error / openai_unavailable → "Connection problem. Tap to retry."
+internal_error                → "Something went wrong. Tap to retry."
+```
+
+Always tell the user *what* happened; never show a raw error string.
 
 ---
 
@@ -208,12 +248,19 @@ create table recordings (
   user_id uuid not null,
   audio_path text not null,
   status text not null default 'uploaded',
+  title text,                         -- LLM-generated; set when status = done
   transcript text,
-  error text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  error text,                         -- machine error code when failed
+  created_at timestamptz not null default now(),  -- treated as the recording date
+  updated_at timestamptz not null default now(),
+
+  -- v2 (nullable, unused in MVP):
+  recorded_at timestamptz             -- client-supplied true record-start time
 );
 ```
+
+`created_at` is the recording date for the MVP (record → upload → POST happens
+within seconds). A precise client-captured `recorded_at` is **v2**.
 
 Statuses:
 
@@ -226,18 +273,26 @@ failed
 
 ### Schema — `chores`
 
+A chore holds a single `content` string (a chore *or* a note — same shape).
+Ordering uses a **fractional `numeric` `position`**: insert between two rows with
+`(prev + next) / 2`, append with `max(position) + 1`. `numeric` (not float) keeps
+arbitrary precision so repeated inserts in the same gap never collide.
+
 ```sql
 create table chores (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   recording_id uuid references recordings(id),
-  title text not null,
-  due_date date,
-  priority text default 'normal',
-  notes text,
+  content text not null,              -- the chore/note text
   is_done boolean not null default false,
+  position numeric,                   -- fractional ordering; order by position
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+
+  -- v2 (nullable, unused in MVP — LLM leaves these null):
+  due_date date,
+  priority text,                      -- low | normal | high
+  notes text
 );
 ```
 
@@ -261,9 +316,41 @@ user, but the RLS policies here are the first line of defense.
 
 ---
 
-## Later Additions (Not for MVP)
+## 6. Chore actions
+
+The chores list screen supports, in the MVP:
+
+```http
+PATCH  /chores/:id      → toggle is_done, edit content
+DELETE /chores/:id      → remove a chore
+```
+
+Editing text and toggling done share `PATCH /chores/:id`. Deleting is allowed in
+MVP. **Reorder** (drag to change `position`) is v2 — the `position` column exists
+now so it drops in without a migration.
+
+---
+
+## 7. History list
+
+A screen shows the user's past recordings:
+
+```http
+GET /recordings
+```
+
+Returns an array of recordings (each with `title`, `created_at`, `status`, and
+`chores`). Pagination is **v2**.
+
+---
+
+## v2 (deferred — schema/API already leaves room)
 
 ```text
+Chore due_date / priority / notes   (nullable now; LLM fills later)
+Chore reorder (drag → position)     (numeric position column exists now)
+Client-supplied recorded_at         (nullable column exists now)
+GET /recordings pagination
 Android widget / Quick Settings tile
 iOS Shortcut / Action Button / App Intent
 Push notifications when chores are ready
