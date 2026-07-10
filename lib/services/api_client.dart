@@ -34,6 +34,20 @@ class ApiClient {
     throw ApiException(res.statusCode, message);
   }
 
+  /// POST /recordings/upload-url — get a presigned R2 URL to upload audio to.
+  /// The app PUTs the file to [UploadTarget.uploadUrl], then calls
+  /// [createRecording] with [UploadTarget.audioPath].
+  Future<UploadTarget> getUploadUrl() async {
+    final res = await _http.post(_uri('/recordings/upload-url'), headers: _headers());
+    if (res.statusCode != 200) _throwFromResponse(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return UploadTarget(
+      uploadUrl: body['upload_url'] as String,
+      audioPath: body['audio_path'] as String,
+      contentType: body['content_type'] as String? ?? 'audio/m4a',
+    );
+  }
+
   /// POST /recordings — create a job, returns the job id. Processing is async.
   Future<String> createRecording(String audioPath) async {
     final res = await _http.post(
@@ -89,6 +103,19 @@ class ApiClient {
     final res = await _http.delete(_uri('/chores/$id'), headers: _headers());
     if (res.statusCode != 204) _throwFromResponse(res);
   }
+}
+
+/// Where + how to upload an audio file (from POST /recordings/upload-url).
+class UploadTarget {
+  const UploadTarget({
+    required this.uploadUrl,
+    required this.audioPath,
+    required this.contentType,
+  });
+
+  final String uploadUrl; // presigned R2 PUT URL
+  final String audioPath; // R2 key to send back in POST /recordings
+  final String contentType; // must match what the URL was signed with
 }
 
 class ApiException implements Exception {

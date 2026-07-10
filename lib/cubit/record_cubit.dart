@@ -89,13 +89,17 @@ class RecordCubit extends Cubit<RecordState> {
 
     try {
       emit(const RecordState(phase: RecordPhase.uploading, message: 'Uploading…'));
-      final audioPath = await _storage.uploadRecording(
-        recordingId: recordingId,
+      // Get a presigned R2 URL, upload the audio directly to R2, then create
+      // the job with the returned key.
+      final target = await _api.getUploadUrl();
+      await _storage.uploadToPresignedUrl(
+        uploadUrl: target.uploadUrl,
         localFilePath: localPath,
+        contentType: target.contentType,
       );
 
       emit(const RecordState(phase: RecordPhase.creating, message: 'Creating chores…'));
-      final jobId = await _api.createRecording(audioPath);
+      final jobId = await _api.createRecording(target.audioPath);
 
       emit(const RecordState(phase: RecordPhase.processing, message: 'Processing…'));
       await _poll(jobId);

@@ -1,36 +1,30 @@
 import 'dart:io';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
 
-import '../config.dart';
-
-/// Uploads audio to Supabase Storage using the user-scoped path convention
-///   recordings/{user_id}/{recording_id}.m4a
-/// and returns the full audio_path the backend expects.
+/// Uploads audio directly to Cloudflare R2 using a presigned PUT URL minted by
+/// the backend. The app never holds R2 credentials — it only ever sees the
+/// short-lived signed URL.
 class StorageService {
-  Future<String> uploadRecording({
-    required String recordingId,
+  StorageService({http.Client? client}) : _http = client ?? http.Client();
+
+  final http.Client _http;
+
+  /// PUTs the local file to [uploadUrl]. [contentType] MUST match what the URL
+  /// was signed with, or R2 rejects the request.
+  Future<void> uploadToPresignedUrl({
+    required String uploadUrl,
     required String localFilePath,
+    required String contentType,
   }) async {
-    final client = Supabase.instance.client;
-    final userId = client.auth.currentUser?.id;
-    if (userId == null) {
-      throw StateError('Not authenticated — cannot upload.');
+    final bytes = await File(localFilePath).readAsBytes();
+    final res = await _http.put(
+      Uri.parse(uploadUrl),
+      headers: {'Content-Type': contentType},
+      body: bytes,
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Upload failed (${res.statusCode}).');
     }
-
-    // Object path within the bucket: {user_id}/{recording_id}.m4a
-    final objectPath = '$userId/$recordingId.m4a';
-
-    await client.storage.from(AppConfig.storageBucket).upload(
-          objectPath,
-          File(localFilePath),
-          fileOptions: const FileOptions(
-            contentType: 'audio/m4a',
-            upsert: true,
-          ),
-        );
-
-    // audio_path includes the bucket prefix, matching the backend contract.
-    return '${AppConfig.storageBucket}/$objectPath';
   }
 }

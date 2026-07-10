@@ -109,10 +109,6 @@ class AppConfig {
   static String get supabasePublishableKey => _current.supabasePublishableKey;
   static String get backendUrl => _current.backendUrl;
 
-  /// Storage bucket that audio is uploaded to (matches the backend + RLS).
-  /// Environment-independent, so it stays a plain constant.
-  static const storageBucket = 'recordings';
-
   /// Recording limits — mirrors the backend/API contract. Up to 30 min of
   /// speech; at 64 kbps mono that's ≈ 14 MB, safely under OpenAI's 25 MB limit.
   static const maxRecordingSeconds = 30 * 60; // 30 minutes

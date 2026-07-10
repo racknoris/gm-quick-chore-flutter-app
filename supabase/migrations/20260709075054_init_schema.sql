@@ -109,35 +109,7 @@ create policy chores_update_own on public.chores
 create policy chores_delete_own on public.chores
   for delete using (auth.uid() = user_id);
 
--- ---------------------------------------------------------------------------
--- Storage: private "recordings" bucket, path convention
---   recordings/{user_id}/{recording_id}.m4a
--- The first path segment must equal the authenticated user's id.
--- ---------------------------------------------------------------------------
-insert into storage.buckets (id, name, public)
-values ('recordings', 'recordings', false)
-on conflict (id) do nothing;
-
-create policy recordings_storage_select_own on storage.objects
-  for select using (
-    bucket_id = 'recordings'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
-
-create policy recordings_storage_insert_own on storage.objects
-  for insert with check (
-    bucket_id = 'recordings'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
-
-create policy recordings_storage_update_own on storage.objects
-  for update using (
-    bucket_id = 'recordings'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
-
-create policy recordings_storage_delete_own on storage.objects
-  for delete using (
-    bucket_id = 'recordings'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
+-- Audio blobs live in Cloudflare R2 (not Supabase Storage). The backend mints
+-- presigned upload URLs scoped to {user_id}/{recording_id}.m4a and enforces
+-- ownership, so there is no Supabase storage bucket/policy here. Supabase owns
+-- only Auth + these tables.

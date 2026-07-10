@@ -1,10 +1,10 @@
 # Frontend — Personal Assistant Voice-to-Chores
 
-This is the **Flutter mobile app** plus the **`supabase/` folder** (database schema,
-storage config, and RLS policies). The app records audio, uploads it to Supabase
-Storage, calls the Heroku backend, polls job status, and displays the generated
-chores. All transcription and LLM work happens on the backend — the app never
-talks to OpenAI.
+This is the **Flutter mobile app** plus the **`supabase/` folder** (database schema
+and RLS policies). The app records audio, uploads it to **Cloudflare R2** via a
+presigned URL from the backend, calls the Heroku backend, polls job status, and
+displays the generated chores. All transcription and LLM work happens on the
+backend — the app never talks to OpenAI, and never holds R2 credentials.
 
 ---
 
@@ -12,7 +12,7 @@ talks to OpenAI.
 
 ```text
 Record audio
-Upload audio to Supabase Storage
+Upload audio to Cloudflare R2 (via presigned URL from the backend)
 Call the Heroku backend API
 Poll job status
 Display the generated chores
@@ -22,9 +22,10 @@ The `supabase/` folder additionally owns:
 
 ```text
 Postgres schema (recordings + chores)
-Storage bucket + path convention
-RLS / storage access policies
+RLS / row access policies
 ```
+
+Audio storage is **Cloudflare R2** (owned by the backend), not Supabase Storage.
 
 ---
 
@@ -32,7 +33,7 @@ RLS / storage access policies
 
 ```text
 Flutter mobile app
-Supabase Storage   (raw audio recordings)
+Cloudflare R2      (raw audio recordings — via backend presigned URLs)
 Supabase Postgres  (users, recordings, transcripts, chores, status)
 Supabase Auth      (MANDATORY — every backend call carries a Supabase JWT)
 Heroku Web API     (backend orchestration — see backend CLAUDE.md)
@@ -67,7 +68,7 @@ User taps record
 → app starts recording
 → user stops recording
 → app saves local audio file
-→ app uploads audio to Supabase Storage
+→ app gets a presigned URL (POST /recordings/upload-url) and PUTs audio to R2
 → app calls POST /recordings with the audio_path
 → app receives job_id
 → app polls GET /recordings/:id until done or failed
@@ -99,29 +100,25 @@ see the backend's worker+queue note.
 
 ---
 
-## 2. Upload to Supabase Storage
+## 2. Upload to Cloudflare R2 (presigned URL)
 
-Upload the local audio file using a **user-specific path**:
+Audio blobs live in **Cloudflare R2**, not Supabase Storage. The app never holds
+R2 credentials — it uploads via a short-lived presigned URL from the backend:
 
 ```text
-recordings/{user_id}/{recording_id}.m4a
+1. POST /recordings/upload-url  → { upload_url, audio_path, content_type }
+2. PUT the audio bytes to upload_url  (Content-Type must match content_type)
+3. audio_path (= {user_id}/{recording_id}.m4a) is the R2 key
 ```
 
 Example:
 
 ```text
-recordings/user_123/rec_456.m4a
+audio_path = user_123/rec_456.m4a
 ```
 
-After upload the app holds:
-
-```text
-audio_path = recordings/user_123/rec_456.m4a
-```
-
-For MVP, a direct authenticated Supabase upload is fine as long as the storage
-policies are correct (see `supabase/` below). Alternatively the app can request a
-signed upload URL from the backend.
+The presigned URL is scoped to the caller's folder, so a client can only write
+its own path. The backend re-validates ownership on `POST /recordings`.
 
 ---
 
@@ -299,23 +296,26 @@ create table chores (
 );
 ```
 
-### Storage
+### Storage (Cloudflare R2, owned by the backend)
+
+Audio is stored in R2, not Supabase Storage. The backend mints presigned upload
+URLs and enforces ownership; the app never holds R2 credentials.
 
 ```text
-Bucket:          recordings
-Path convention: recordings/{user_id}/{recording_id}.m4a
+Bucket:          R2 (private)  — see backend config
+Key convention:  {user_id}/{recording_id}.m4a
 ```
 
 ### Security / RLS
 
 ```text
-Use user-specific storage paths.
-Do not let users read or write other users' recordings.
-Storage + row policies must scope every read/write to the authenticated user_id.
+Row policies (recordings + chores) scope every read/write to auth.uid().
+Audio access is controlled by short-lived presigned R2 URLs (backend-minted),
+  each scoped to {user_id}/... so a client can only touch its own audio.
 ```
 
-The backend independently re-validates that `audio_path` belongs to the current
-user, but the RLS policies here are the first line of defense.
+RLS on the tables is the first line of defense for data; the backend re-validates
+that `audio_path` belongs to the current user on every request.
 
 ---
 
