@@ -91,14 +91,14 @@ class AppConfig {
       backendUrl: 'http://10.0.0.6:3000',
     ),
     Environment.staging: _EnvValues(
-      supabaseUrl: 'https://TODO-staging.supabase.co',
-      supabasePublishableKey: 'TODO-staging-publishable-key',
-      backendUrl: 'https://TODO-staging.herokuapp.com',
+      supabaseUrl: 'https://irvzngrxibyflhygjjex.supabase.co',
+      supabasePublishableKey: 'sb_publishable_YXKGKvtve1BaZX6Zu3sJDw_-vBTlxnf',
+      backendUrl: 'https://gm-quick-chore-d393b31d5d51.herokuapp.com',
     ),
     Environment.prod: _EnvValues(
-      supabaseUrl: 'https://TODO-prod.supabase.co',
-      supabasePublishableKey: 'TODO-prod-publishable-key',
-      backendUrl: 'https://TODO-prod.herokuapp.com',
+      supabaseUrl: 'https://irvzngrxibyflhygjjex.supabase.co',
+      supabasePublishableKey: 'sb_publishable_YXKGKvtve1BaZX6Zu3sJDw_-vBTlxnf',
+      backendUrl: 'https://gm-quick-chore-d393b31d5d51.herokuapp.com',
     ),
   };
 
