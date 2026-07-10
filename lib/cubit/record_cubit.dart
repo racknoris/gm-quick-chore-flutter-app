@@ -1,11 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:uuid/uuid.dart';
 
 import '../models/recording.dart';
 import '../services/api_client.dart';
-import '../services/audio_recorder.dart';
+import '../services/background_recorder.dart';
 import '../services/storage_service.dart';
 
 /// The user-facing phases of the record -> upload -> poll -> display flow.
@@ -51,18 +51,22 @@ class RecordCubit extends Cubit<RecordState> {
   RecordCubit({
     required ApiClient api,
     required StorageService storage,
-    required AudioRecorderService recorder,
+    required BackgroundRecorder recorder,
   })  : _api = api,
         _storage = storage,
         _recorder = recorder,
-        super(RecordState.idle);
+        super(RecordState.idle) {
+    // Stopping from the notification (screen off / app backgrounded) funnels
+    // through the same pipeline as the in-app Stop button.
+    _recorder.onStopRequested = () {
+      if (state.phase == RecordPhase.recording) stopAndProcess();
+    };
+  }
 
   final ApiClient _api;
   final StorageService _storage;
-  final AudioRecorderService _recorder;
-  final _uuid = const Uuid();
+  final BackgroundRecorder _recorder;
 
-  String? _recordingId;
   Timer? _pollTimer;
 
   Future<void> startRecording() async {
@@ -73,16 +77,26 @@ class RecordCubit extends Cubit<RecordState> {
       ));
       return;
     }
-    _recordingId = _uuid.v4();
-    await _recorder.start(_recordingId!);
-    emit(const RecordState(phase: RecordPhase.recording, message: 'Recording…'));
+    try {
+      // Recording runs in a foreground service, so it survives the screen going
+      // off or the app being backgrounded.
+      await _recorder.start();
+      emit(const RecordState(phase: RecordPhase.recording, message: 'Recording…'));
+    } catch (e) {
+      _fail(e.toString());
+    }
   }
 
   /// Stops recording and runs the full pipeline: upload -> create -> poll.
   Future<void> stopAndProcess() async {
-    final localPath = await _recorder.stop();
-    final recordingId = _recordingId;
-    if (localPath == null || recordingId == null) {
+    final String localPath;
+    try {
+      localPath = await _recorder.stop();
+    } catch (e) {
+      _fail(e.toString());
+      return;
+    }
+    if (!File(localPath).existsSync() || File(localPath).lengthSync() == 0) {
       _fail('No audio was recorded.');
       return;
     }
@@ -149,7 +163,6 @@ class RecordCubit extends Cubit<RecordState> {
 
   void reset() {
     _pollTimer?.cancel();
-    _recordingId = null;
     emit(RecordState.idle);
   }
 
@@ -161,7 +174,7 @@ class RecordCubit extends Cubit<RecordState> {
   @override
   Future<void> close() {
     _pollTimer?.cancel();
-    _recorder.dispose();
+    _recorder.onStopRequested = null;
     return super.close();
   }
 }

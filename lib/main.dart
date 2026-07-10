@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import 'config.dart';
@@ -7,7 +8,7 @@ import 'cubit/auth_cubit.dart';
 import 'cubit/record_cubit.dart';
 import 'cubit/recordings_cubit.dart';
 import 'services/api_client.dart';
-import 'services/audio_recorder.dart';
+import 'services/background_recorder.dart';
 import 'services/storage_service.dart';
 import 'ui/auth_page.dart';
 import 'ui/home_page.dart';
@@ -18,11 +19,14 @@ Future<void> main() async {
     url: AppConfig.supabaseUrl,
     publishableKey: AppConfig.supabasePublishableKey,
   );
-  runApp(const App());
+  final recorder = BackgroundRecorder()..init();
+  runApp(App(recorder: recorder));
 }
 
 class App extends StatelessWidget {
-  const App({super.key});
+  const App({super.key, required this.recorder});
+
+  final BackgroundRecorder recorder;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +35,7 @@ class App extends StatelessWidget {
       providers: [
         RepositoryProvider.value(value: api),
         RepositoryProvider(create: (_) => StorageService()),
-        RepositoryProvider(create: (_) => AudioRecorderService()),
+        RepositoryProvider.value(value: recorder),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -40,7 +44,7 @@ class App extends StatelessWidget {
             create: (ctx) => RecordCubit(
               api: ctx.read<ApiClient>(),
               storage: ctx.read<StorageService>(),
-              recorder: ctx.read<AudioRecorderService>(),
+              recorder: ctx.read<BackgroundRecorder>(),
             ),
           ),
           BlocProvider(create: (_) => RecordingsCubit(api)),
@@ -51,7 +55,9 @@ class App extends StatelessWidget {
             colorSchemeSeed: Colors.indigo,
             useMaterial3: true,
           ),
-          home: const _AuthGate(),
+          // WithForegroundTask keeps the foreground-service lifecycle wired to
+          // the widget tree (required by flutter_foreground_task).
+          home: const WithForegroundTask(child: _AuthGate()),
         ),
       ),
     );

@@ -4,6 +4,11 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Record short voice notes to turn into chores.</string>
+	<!-- Keep recording when the screen is off / app is backgrounded. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

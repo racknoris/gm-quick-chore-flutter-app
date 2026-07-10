@@ -98,6 +98,15 @@ transcription limit (~50 min is where you'd approach it). Long recordings make
 transcription take minutes, so processing must not run on the web dyno alone —
 see the backend's worker+queue note.
 
+**Background recording:** recording runs inside a **foreground service**
+(`flutter_foreground_task`) so it continues when the screen is off or the app is
+backgrounded. The recorder lives in the service isolate (`background_recorder.dart`),
+writing to a fixed file the main isolate uploads after Stop. A persistent
+notification ("GM Quick Chore — Recording your chores…") with a **Stop** button is
+shown while recording. Requires: Android `FOREGROUND_SERVICE_MICROPHONE` +
+`POST_NOTIFICATIONS` + a `microphone` service declaration; iOS `UIBackgroundModes:
+audio`.
+
 ---
 
 ## 2. Upload to Cloudflare R2 (presigned URL)
