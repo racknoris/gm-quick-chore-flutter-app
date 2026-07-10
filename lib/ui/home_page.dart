@@ -81,17 +81,51 @@ class _RecordingTile extends StatelessWidget {
       RecordingStatus.failed => recording.friendlyError,
       _ => 'Processing…',
     };
-    return ListTile(
-      leading: _statusIcon(recording.status),
-      title: Text(recording.title ?? 'Untitled'),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => RecordingDetailPage(recordingId: recording.id),
-        ));
-      },
+    return Dismissible(
+      key: ValueKey(recording.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: Theme.of(context).colorScheme.errorContainer,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline),
+      ),
+      confirmDismiss: (_) => _confirmDelete(context),
+      onDismissed: (_) =>
+          context.read<RecordingsCubit>().deleteRecording(recording.id),
+      child: ListTile(
+        leading: _statusIcon(recording.status),
+        title: Text(recording.title ?? 'Untitled'),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => RecordingDetailPage(recordingId: recording.id),
+          ));
+        },
+      ),
     );
+  }
+
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete recording?'),
+        content: const Text('This removes the recording and all its chores.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
   }
 
   Widget _statusIcon(RecordingStatus status) {

@@ -28,11 +28,46 @@ class RecordingDetailPage extends StatelessWidget {
         }
 
         return Scaffold(
-          appBar: AppBar(title: Text(recording.title ?? 'Recording')),
+          appBar: AppBar(
+            title: Text(recording.title ?? 'Recording'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Delete recording',
+                onPressed: () => _confirmDelete(context, recording.id),
+              ),
+            ],
+          ),
           body: _body(context, recording),
         );
       },
     );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, String recordingId) async {
+    final cubit = context.read<RecordingsCubit>();
+    final navigator = Navigator.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete recording?'),
+        content: const Text('This removes the recording and all its chores.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      cubit.deleteRecording(recordingId);
+      navigator.pop(); // leave the detail page
+    }
   }
 
   Widget _body(BuildContext context, Recording recording) {

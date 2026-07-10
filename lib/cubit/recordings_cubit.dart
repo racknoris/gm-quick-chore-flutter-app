@@ -54,6 +54,20 @@ class RecordingsCubit extends Cubit<RecordingsState> {
     }
   }
 
+  Future<void> deleteRecording(String recordingId) async {
+    // Optimistic removal; restore the list on failure.
+    final previous = state.recordings;
+    emit(RecordingsState(
+      phase: ListPhase.ready,
+      recordings: previous.where((r) => r.id != recordingId).toList(),
+    ));
+    try {
+      await _api.deleteRecording(recordingId);
+    } catch (_) {
+      emit(RecordingsState(phase: ListPhase.ready, recordings: previous));
+    }
+  }
+
   Future<void> retry(String recordingId) async {
     try {
       await _api.retryRecording(recordingId);

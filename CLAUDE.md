@@ -345,6 +345,14 @@ GET /recordings
 Returns an array of recordings (each with `title`, `created_at`, `status`, and
 `chores`). Pagination is **v2**.
 
+Swipe a recording (or use the detail-screen delete action) to remove it:
+
+```http
+DELETE /recordings/:id      → deletes the recording, its chores, and its audio
+```
+
+Deletion is confirmed with a dialog; the list updates optimistically.
+
 ---
 
 ## v2 (deferred — schema/API already leaves room)

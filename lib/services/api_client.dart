@@ -77,6 +77,12 @@ class ApiClient {
         .toList();
   }
 
+  /// DELETE /recordings/:id — remove a recording, its chores, and its audio.
+  Future<void> deleteRecording(String id) async {
+    final res = await _http.delete(_uri('/recordings/$id'), headers: _headers());
+    if (res.statusCode != 204) _throwFromResponse(res);
+  }
+
   /// POST /recordings/:id/retry — reprocess a failed job.
   Future<void> retryRecording(String id) async {
     final res =
