@@ -172,6 +172,7 @@ class _RecordButton extends StatelessWidget {
       builder: (context, state) {
         final cubit = context.read<RecordCubit>();
         final isRecording = state.phase == RecordPhase.recording;
+        final isPaused = state.phase == RecordPhase.paused;
         final isBusy = state.phase == RecordPhase.uploading ||
             state.phase == RecordPhase.creating ||
             state.phase == RecordPhase.processing;
@@ -188,12 +189,33 @@ class _RecordButton extends StatelessWidget {
           );
         }
 
+        // While recording (or paused), offer Pause/Resume next to Stop.
+        if (isRecording || isPaused) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FloatingActionButton.extended(
+                heroTag: 'pauseResume',
+                onPressed: () => isPaused ? cubit.resume() : cubit.pause(),
+                icon: Icon(isPaused ? Icons.play_arrow : Icons.pause),
+                label: Text(isPaused ? 'Resume' : 'Pause'),
+              ),
+              const SizedBox(width: 12),
+              FloatingActionButton.extended(
+                heroTag: 'stop',
+                backgroundColor: Colors.red,
+                onPressed: () => cubit.stopAndProcess(),
+                icon: const Icon(Icons.stop),
+                label: const Text('Stop'),
+              ),
+            ],
+          );
+        }
+
         return FloatingActionButton.extended(
-          backgroundColor: isRecording ? Colors.red : null,
-          onPressed: () =>
-              isRecording ? cubit.stopAndProcess() : cubit.startRecording(),
-          icon: Icon(isRecording ? Icons.stop : Icons.mic),
-          label: Text(isRecording ? 'Stop' : 'Record'),
+          onPressed: () => cubit.startRecording(),
+          icon: const Icon(Icons.mic),
+          label: const Text('Record'),
         );
       },
     );

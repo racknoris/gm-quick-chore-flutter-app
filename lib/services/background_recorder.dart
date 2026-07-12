@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 const String _kStopAction = 'gm_stop';
+const String _kPauseAction = 'gm_pause';
+const String _kResumeAction = 'gm_resume';
 const String _recordingFileName = 'gm_recording.m4a';
 
 /// Path shared by BOTH isolates: the foreground-service isolate records to it,
@@ -41,6 +43,7 @@ void startBackgroundRecorder() {
 
 class _RecordingTaskHandler extends TaskHandler {
   final AudioRecorder _recorder = AudioRecorder();
+  bool _paused = false;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -48,14 +51,7 @@ class _RecordingTaskHandler extends TaskHandler {
     final file = File(path);
     if (await file.exists()) await file.delete(); // clear a stale recording
     await _recorder.start(_kRecordConfig, path: path);
-
-    FlutterForegroundTask.updateService(
-      notificationTitle: 'GM Quick Chore',
-      notificationText: 'Recording your chores…',
-      notificationButtons: const [
-        NotificationButton(id: _kStopAction, text: 'Stop'),
-      ],
-    );
+    _updateNotification();
   }
 
   @override
@@ -69,8 +65,54 @@ class _RecordingTaskHandler extends TaskHandler {
 
   @override
   void onNotificationButtonPressed(String id) {
-    // User tapped "Stop" in the notification — tell the main isolate to finish.
-    if (id == _kStopAction) FlutterForegroundTask.sendDataToMain(_kStopAction);
+    switch (id) {
+      // Stop funnels to the main isolate, which runs the upload pipeline.
+      case _kStopAction:
+        FlutterForegroundTask.sendDataToMain(_kStopAction);
+      // Pause/Resume act locally, then echo to main so the cubit's phase
+      // tracks a notification-driven change.
+      case _kPauseAction:
+        _applyPause();
+        FlutterForegroundTask.sendDataToMain(_kPauseAction);
+      case _kResumeAction:
+        _applyResume();
+        FlutterForegroundTask.sendDataToMain(_kResumeAction);
+    }
+  }
+
+  @override
+  void onReceiveData(Object data) {
+    // Pause/Resume commands sent from the app UI (main isolate).
+    if (data == _kPauseAction) _applyPause();
+    if (data == _kResumeAction) _applyResume();
+  }
+
+  Future<void> _applyPause() async {
+    if (_paused) return;
+    _paused = true;
+    await _recorder.pause();
+    _updateNotification();
+  }
+
+  Future<void> _applyResume() async {
+    if (!_paused) return;
+    _paused = false;
+    await _recorder.resume();
+    _updateNotification();
+  }
+
+  void _updateNotification() {
+    FlutterForegroundTask.updateService(
+      notificationTitle: 'GM Quick Chore',
+      notificationText: _paused ? 'Paused' : 'Recording your chores…',
+      notificationButtons: [
+        NotificationButton(
+          id: _paused ? _kResumeAction : _kPauseAction,
+          text: _paused ? 'Resume' : 'Pause',
+        ),
+        const NotificationButton(id: _kStopAction, text: 'Stop'),
+      ],
+    );
   }
 }
 
@@ -81,6 +123,11 @@ class _RecordingTaskHandler extends TaskHandler {
 class BackgroundRecorder {
   /// Called when the user stops recording from the notification (not the app UI).
   VoidCallback? onStopRequested;
+
+  /// Called when pause/resume is triggered from the notification, so the cubit
+  /// can sync its phase (app-UI-driven pause/resume updates the phase directly).
+  VoidCallback? onPauseRequested;
+  VoidCallback? onResumeRequested;
 
   /// Configure the plugin + communication port. Call once in `main()`.
   void init() {
@@ -109,7 +156,13 @@ class BackgroundRecorder {
 
   void _onData(Object data) {
     if (data == _kStopAction) onStopRequested?.call();
+    if (data == _kPauseAction) onPauseRequested?.call();
+    if (data == _kResumeAction) onResumeRequested?.call();
   }
+
+  /// Pause/resume the in-progress recording (same file continues on resume).
+  void pause() => FlutterForegroundTask.sendDataToTask(_kPauseAction);
+  void resume() => FlutterForegroundTask.sendDataToTask(_kResumeAction);
 
   Future<bool> hasPermission() => AudioRecorder().hasPermission();
 

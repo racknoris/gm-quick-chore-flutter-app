@@ -378,4 +378,21 @@ Push notifications when chores are ready
 Recurring chores
 Calendar integration
 Paid tiers with longer recording limits
+Segmented recording (crash-durable audio)
 ```
+
+### Segmented recording (crash-durable audio) — v2
+
+The MVP records to a **single** `.m4a`. That container's trailer (moov atom) is
+only written on a clean `stop()`, so a hard kill or device reset *mid-recording*
+can leave the tail unfinalized/corrupt, and no upload marker exists yet (the
+marker is written at Stop). Post-Stop loss is fully covered by the pending-upload
+queue + resume-on-launch; **mid-recording** loss is the remaining gap.
+
+The robust fix is to record in fixed-length **segments** (checkpoint / "quick-save"
+per chunk). Each closed segment is a finalized, uploadable file, so a crash costs
+at most the last in-flight segment, not the whole recording. Requires: per-segment
+unique filenames + ordering, a start-time marker (discover orphans on launch),
+and stitching — either client-side concatenation before upload, or per-chunk
+upload with backend merge/transcribe-in-order. Bigger change than the single-file
+pending-upload queue; deferred unless mid-recording durability becomes a priority.

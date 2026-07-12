@@ -34,6 +34,12 @@ enum Environment {
   /// Android manifests; a real iPhone additionally needs an ATS exception).
   localDevice,
 
+  /// Physical device hitting a LOCAL backend (your Mac's LAN IP) that is itself
+  /// run with `.env.production` — so the backend talks to REMOTE Supabase + R2,
+  /// and the app authenticates against remote Supabase directly. Lets you test
+  /// backend changes on-device without deploying to Heroku.
+  localDeviceLocalBackendRemoteSupabase,
+
   staging,
   prod,
 }
@@ -60,6 +66,8 @@ class AppConfig {
   static Environment get environment => switch (_envName) {
         'localEmulatorAndroid' => Environment.localEmulatorAndroid,
         'localDevice' => Environment.localDevice,
+        'localDeviceLocalBackendRemoteSupabase' =>
+          Environment.localDeviceLocalBackendRemoteSupabase,
         'staging' => Environment.staging,
         'prod' => Environment.prod,
         _ => Environment.localSimulatorIOS,
@@ -89,6 +97,12 @@ class AppConfig {
       supabaseUrl: 'http://10.0.0.6:54321', // <- your Mac's LAN IP
       supabasePublishableKey: _localPublishableKey,
       backendUrl: 'http://10.0.0.6:3000',
+    ),
+    Environment.localDeviceLocalBackendRemoteSupabase: _EnvValues(
+      // Remote Supabase (matches the backend's .env.production), local backend.
+      supabaseUrl: 'https://irvzngrxibyflhygjjex.supabase.co',
+      supabasePublishableKey: 'sb_publishable_YXKGKvtve1BaZX6Zu3sJDw_-vBTlxnf',
+      backendUrl: 'http://10.0.0.6:3000', // <- your Mac's LAN IP
     ),
     Environment.staging: _EnvValues(
       supabaseUrl: 'https://irvzngrxibyflhygjjex.supabase.co',

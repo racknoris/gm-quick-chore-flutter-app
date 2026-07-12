@@ -12,6 +12,7 @@ import '../services/storage_service.dart';
 enum RecordPhase {
   idle,
   recording,
+  paused, // recording paused; same file resumes on unpause
   uploading, // uploading audio to storage
   creating, // POST /recordings
   processing, // polling GET /recordings/:id
@@ -59,9 +60,24 @@ class RecordCubit extends Cubit<RecordState> {
     // Stopping from the notification (screen off / app backgrounded) funnels
     // through the same pipeline as the in-app Stop button.
     _recorder.onStopRequested = () {
-      if (state.phase == RecordPhase.recording) stopAndProcess();
+      if (_isActive) stopAndProcess();
+    };
+    // Pause/resume from the notification: the service already applied it, so
+    // just mirror the phase here.
+    _recorder.onPauseRequested = () {
+      if (state.phase == RecordPhase.recording) {
+        emit(const RecordState(phase: RecordPhase.paused, message: 'Paused'));
+      }
+    };
+    _recorder.onResumeRequested = () {
+      if (state.phase == RecordPhase.paused) {
+        emit(const RecordState(phase: RecordPhase.recording, message: 'Recording…'));
+      }
     };
   }
+
+  bool get _isActive =>
+      state.phase == RecordPhase.recording || state.phase == RecordPhase.paused;
 
   final ApiClient _api;
   final StorageService _storage;
@@ -85,6 +101,19 @@ class RecordCubit extends Cubit<RecordState> {
     } catch (e) {
       _fail(e.toString());
     }
+  }
+
+  /// Pause the in-progress recording; the same file resumes on [resume].
+  void pause() {
+    if (state.phase != RecordPhase.recording) return;
+    _recorder.pause();
+    emit(const RecordState(phase: RecordPhase.paused, message: 'Paused'));
+  }
+
+  void resume() {
+    if (state.phase != RecordPhase.paused) return;
+    _recorder.resume();
+    emit(const RecordState(phase: RecordPhase.recording, message: 'Recording…'));
   }
 
   /// Stops recording and runs the full pipeline: upload -> create -> poll.
@@ -175,6 +204,8 @@ class RecordCubit extends Cubit<RecordState> {
   Future<void> close() {
     _pollTimer?.cancel();
     _recorder.onStopRequested = null;
+    _recorder.onPauseRequested = null;
+    _recorder.onResumeRequested = null;
     return super.close();
   }
 }
