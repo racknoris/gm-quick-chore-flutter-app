@@ -1,4 +1,4 @@
-package com.example.gm_quick_chore_flutter_app
+package il.co.getmarketing.quickchore
 
 import io.flutter.embedding.android.FlutterActivity
 
