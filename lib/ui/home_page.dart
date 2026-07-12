@@ -18,7 +18,13 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    context.read<RecordingsCubit>().load();
+    final recordings = context.read<RecordingsCubit>();
+    recordings.load();
+    // Recover any recordings a previous session left un-uploaded, then refresh
+    // the list so the recovered ones show up.
+    context.read<RecordCubit>().resumePending().then((_) {
+      if (mounted) recordings.load();
+    });
   }
 
   @override

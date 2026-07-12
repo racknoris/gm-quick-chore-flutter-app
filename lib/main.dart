@@ -9,6 +9,7 @@ import 'cubit/record_cubit.dart';
 import 'cubit/recordings_cubit.dart';
 import 'services/api_client.dart';
 import 'services/background_recorder.dart';
+import 'services/pending_uploads.dart';
 import 'services/storage_service.dart';
 import 'ui/auth_page.dart';
 import 'ui/home_page.dart';
@@ -36,6 +37,7 @@ class App extends StatelessWidget {
         RepositoryProvider.value(value: api),
         RepositoryProvider(create: (_) => StorageService()),
         RepositoryProvider.value(value: recorder),
+        RepositoryProvider(create: (_) => PendingUploads()),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -45,6 +47,7 @@ class App extends StatelessWidget {
               api: ctx.read<ApiClient>(),
               storage: ctx.read<StorageService>(),
               recorder: ctx.read<BackgroundRecorder>(),
+              pending: ctx.read<PendingUploads>(),
             ),
           ),
           BlocProvider(create: (_) => RecordingsCubit(api)),
